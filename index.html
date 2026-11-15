@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1117">
+<title>Elpris SE3</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --text: #e6edf3; --muted: #8b949e;
+    --cheap: #3fb950; --mid: #d29922; --dear: #f85149; --now: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { display: flex; flex-direction: column; padding: 3vmin 4vmin; gap: 2.5vmin; overflow: hidden; }
+  header { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); font-size: 3.2vmin; }
+  #clock { color: var(--text); font-variant-numeric: tabular-nums; }
+  #gear { background: none; border: 0; color: var(--muted); font-size: 4vmin; padding: 0 0 0 2vmin; cursor: pointer; }
+  #settings { display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,.7); z-index: 10; align-items: center; justify-content: center; padding: 16px; }
+  #settings .box { background: var(--panel); border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; font-size: 16px; }
+  #settings h2 { margin: 0; font-size: 20px; }
+  #settings label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+  #settings small { font-size: 13px; line-height: 1.4; }
+  #settings input:not([type=checkbox]), #settings select { font-size: 18px; padding: 8px; border-radius: 6px; border: 1px solid #30363d; background: var(--bg); color: var(--text); }
+  #settings .row { flex-direction: row; display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  #settings label.row { justify-content: flex-start; color: var(--text); }
+  #settings button { font-size: 16px; padding: 10px 18px; border-radius: 6px; border: 0; background: #30363d; color: var(--text); }
+  #settings button[type=submit] { background: #238636; }
+  .top { display: flex; gap: 3vmin; flex-wrap: wrap; }
+  .card { background: var(--panel); border-radius: 2vmin; padding: 2.5vmin 3.5vmin; flex: 1 1 0; min-width: 0; }
+  .label { color: var(--muted); font-size: 3vmin; text-transform: uppercase; letter-spacing: .05em; }
+  #price { font-size: 17vmin; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; margin-top: 1vmin; }
+  #price small { font-size: 5vmin; font-weight: 500; color: var(--muted); margin-left: 1vmin; }
+  #level { font-size: 4.2vmin; font-weight: 600; margin-top: 1vmin; }
+  #price .arrow { font-size: 12vmin; margin-left: 2vmin; vertical-align: 6%; }
+  #trend { font-size: 3.6vmin; margin-top: .8vmin; color: var(--muted); }
+  #trend b { font-weight: 700; }
+  .up { color: var(--dear); } .down { color: var(--cheap); } .flat { color: var(--muted); }
+  .chartCard { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  #chart { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 1px; min-height: 0; position: relative; margin-top: 1.5vmin; padding-left: 7vmin; }
+  .grid { position: absolute; left: 7vmin; right: 0; border-top: 1px dashed rgba(139,148,158,.35); pointer-events: none; }
+  .grid span { position: absolute; left: -7vmin; width: 6vmin; text-align: right; transform: translateY(-50%); font-size: 2.4vmin; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #tip { position: absolute; transform: translateX(-50%); background: #0d1117; border: 1px solid var(--muted); border-radius: 1vmin;
+    padding: .6vmin 1.4vmin; font-size: 3vmin; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; z-index: 2; }
+  #tip b { font-size: 3.6vmin; }
+  .bar { flex: 1 1 0; border-radius: 2px 2px 0 0; opacity: .85; min-height: 2px; }
+  .bar.past { opacity: .25; }
+  .bar.now { opacity: 1; outline: 2px solid var(--now); outline-offset: 1px; }
+  #axis { display: flex; font-size: 2.6vmin; color: var(--muted); margin-top: .8vmin; margin-left: 7vmin; position: relative; height: 3.4vmin; }
+  #axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  #legend { display: flex; justify-content: space-between; font-size: 2.6vmin; color: var(--muted); margin-top: .5vmin; }
+  #status { font-size: 2.6vmin; color: var(--muted); text-align: center; }
+  .cheap { color: var(--cheap); } .mid { color: var(--mid); } .dear { color: var(--dear); }
+  @media (orientation: portrait) {
+    .top { flex-direction: column; }
+    #price { font-size: 22vmin; }
+  }
+</style>
+</head>
+<body>
+  <header><span>Elpris <b id="areaName">SE3</b> · <span id="priceDesc">spotpris inkl. moms</span></span>
+    <span><span id="clock">--:--</span> <button id="gear" aria-label="Inställningar">&#9881;</button></span></header>
+
+  <form id="settings">
+    <div class="box">
+      <h2>Inställningar</h2>
+      <label>Elområde
+        <select name="area"><option>SE1</option><option>SE2</option><option>SE3</option><option>SE4</option></select></label>
+      <label>Påslag (öre/kWh)
+        <input name="paslag" inputmode="decimal" placeholder="0">
+        <small>Summan av allt du betalar per kWh utöver spotpriset, t.ex. elhandelns påslag, elcertifikat, energiskatt och elöverföring. Skriv beloppet inkl. moms, som på fakturan.</small></label>
+      <label class="row"><input type="checkbox" name="moms"> Spotpris inkl. 25 % moms</label>
+      <div class="row"><button type="button" id="cancel">Avbryt</button><button type="submit">Spara</button></div>
+    </div>
+  </form>
+
+  <div class="top">
+    <div class="card">
+      <div class="label">Just nu</div>
+      <div id="price">--<small>öre/kWh</small></div>
+      <div id="level">&nbsp;</div>
+      <div id="trend">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="card chartCard">
+    <div class="label" id="chartLabel">Idag</div>
+    <div id="chart"></div>
+    <div id="axis"></div>
+    <div id="legend"><span id="minMax"></span><span id="avg"></span></div>
+  </div>
+
+  <div id="status">Laddar…</div>
+
+<script>
+(function () {
+  // ===== Inställningar (kan ändras i adressen, t.ex. index.html?area=SE4&moms=0&paslag=12,5) =====
+  // Ordning: adressen > sparade inställningar > standard
+  var params = new URLSearchParams(location.search);
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem('elprisSettings') || '{}') || {}; } catch (e) {}
+  function setting(key, def) {
+    var v = params.get(key);
+    if (v !== null && v !== '') return v;
+    if (saved[key] !== undefined && saved[key] !== '') return String(saved[key]);
+    return def;
+  }
+  function num(s) { var n = parseFloat(String(s).replace(',', '.')); return isNaN(n) ? 0 : n; }
+
+  var AREA = setting('area', 'SE3').toUpperCase();
+  var VAT = setting('moms', '1') === '0' ? 1 : 1.25;      // spotpris med eller utan 25 % moms
+  var PASLAG = num(setting('paslag', '0'));               // öre/kWh som läggs på spotpriset (som på fakturan)
+  var FETCH_EVERY_MIN = 15;
+
+  document.getElementById('areaName').textContent = AREA;
+  document.getElementById('priceDesc').textContent =
+    (PASLAG ? 'spotpris + ' + fmt(PASLAG) + ' öre påslag' : 'spotpris') + (VAT === 1 ? ' exkl. moms' : ' inkl. moms');
+
+  // Inställningspanel
+  var form = document.getElementById('settings');
+  document.getElementById('gear').addEventListener('click', function () {
+    form.elements.area.value = AREA;
+    form.elements.paslag.value = PASLAG ? String(PASLAG).replace('.', ',') : '';
+    form.elements.moms.checked = VAT !== 1;
+    form.style.display = 'flex';
+  });
+  document.getElementById('cancel').addEventListener('click', function () { form.style.display = 'none'; });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var s = { area: form.elements.area.value, paslag: num(form.elements.paslag.value),
+      moms: form.elements.moms.checked ? '1' : '0' };
+    try { localStorage.setItem('elprisSettings', JSON.stringify(s)); } catch (err) {}
+    location.href = location.pathname + '?area=' + s.area + '&moms=' + s.moms + '&paslag=' + s.paslag;
+  });
+
+  var prices = [];      // [{start: Date, end: Date, ore: number}]
+  var lastFetch = 0;
+  var selected = 0, selTimer = null;   // starttid för stapeln man tryckt på
+
+  // Tryck eller dra över diagrammet för att se priset för en tid
+  function pick(ev) {
+    var chart = document.getElementById('chart');
+    var bars = chart.querySelectorAll('.bar');
+    if (!bars.length) return;
+    var t = ev.touches ? ev.touches[0] : ev;
+    var r = chart.getBoundingClientRect();
+    var first = bars[0].getBoundingClientRect().left, last = bars[bars.length - 1].getBoundingClientRect().right;
+    var i = Math.floor((t.clientX - first) / ((last - first) / bars.length));
+    i = Math.max(0, Math.min(bars.length - 1, i));
+    selected = prices[i].start.getTime();
+    clearTimeout(selTimer);
+    selTimer = setTimeout(function () { selected = 0; render(); }, 15000);
+    render();
+  }
+  var chartEl = document.getElementById('chart');
+  chartEl.addEventListener('click', pick);
+  chartEl.addEventListener('touchmove', function (e) { pick(e); e.preventDefault(); }, { passive: false });
+  chartEl.addEventListener('touchstart', pick, { passive: true });
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function hhmm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function fmt(v) { return (Math.round(v * 10) / 10).toFixed(Math.abs(v) < 100 ? 1 : 0).replace('.', ','); }
+
+  function urlFor(d) {
+    return 'https://www.elprisetjustnu.se/api/v1/prices/' + d.getFullYear() + '/' +
+      pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + AREA + '.json';
+  }
+
+  function fetchDay(d) {
+    return fetch(urlFor(d), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) return [];       // morgondagens priser kommer ca 13:00
+      return r.json();
+    }).then(function (rows) {
+      return rows.map(function (p) {
+        return { start: new Date(p.time_start), end: new Date(p.time_end), ore: p.SEK_per_kWh * 100 * VAT + PASLAG };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function load() {
+    var today = new Date();
+    var tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    Promise.all([fetchDay(today), fetchDay(tomorrow)]).then(function (res) {
+      if (res[0] === null) {
+        setStatus('Kunde inte hämta priser – försöker igen snart');
+        return;
+      }
+      prices = res[0].concat(res[1] || []);
+      lastFetch = Date.now();
+      render();
+    });
+  }
+
+  function setStatus(t) { document.getElementById('status').textContent = t; }
+
+  function levelOf(v, lo, hi) {
+    var span = hi - lo || 1;
+    var x = (v - lo) / span;
+    return x < 0.33 ? 'cheap' : x < 0.66 ? 'mid' : 'dear';
+  }
+
+  function render() {
+    var now = new Date();
+    document.getElementById('clock').textContent = hhmm(now);
+    if (!prices.length) return;
+
+    var cur = null;
+    for (var i = 0; i < prices.length; i++) if (prices[i].start <= now && now < prices[i].end) cur = prices[i];
+
+    var vals = prices.map(function (p) { return p.ore; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var todayVals = prices.filter(function (p) { return p.start.getDate() === now.getDate(); }).map(function (p) { return p.ore; });
+    var tLo = Math.min.apply(null, todayVals), tHi = Math.max.apply(null, todayVals);
+    var tAvg = todayVals.reduce(function (a, b) { return a + b; }, 0) / todayVals.length;
+
+    var priceEl = document.getElementById('price'), levelEl = document.getElementById('level');
+    if (cur) {
+      var lv = levelOf(cur.ore, tLo, tHi);
+
+      // Trend: jämför nuvarande pris med snittet för nästa timme
+      var ci = prices.indexOf(cur), next = prices.slice(ci + 1).filter(function (p) {
+        return p.start.getTime() < cur.end.getTime() + 3600e3;
+      });
+      var trend = null;
+      if (next.length) {
+        var nextAvg = next.reduce(function (a, p) { return a + p.ore; }, 0) / next.length;
+        var diff = nextAvg - cur.ore;
+        var limit = Math.max(2, Math.abs(cur.ore) * 0.05);   // minst 2 öre eller 5 %
+        trend = { dir: diff > limit ? 'up' : diff < -limit ? 'down' : 'flat', avg: nextAvg };
+      }
+      var arrow = trend ? '<span class="arrow ' + trend.dir + '">' +
+        (trend.dir === 'up' ? '&#8599;' : trend.dir === 'down' ? '&#8600;' : '&#8594;') + '</span>' : '';
+      priceEl.innerHTML = fmt(cur.ore) + arrow + '<small>öre/kWh</small>';
+      priceEl.className = lv;
+      document.getElementById('trend').innerHTML = trend
+        ? '<b class="' + trend.dir + '">' + (trend.dir === 'up' ? 'På väg upp' : trend.dir === 'down' ? 'På väg ner' : 'Stabilt') +
+          '</b> · snitt nästa timme ' + fmt(trend.avg) + ' öre'
+        : '&nbsp;';
+      levelEl.className = lv;
+      levelEl.textContent = (lv === 'cheap' ? 'Billigt' : lv === 'mid' ? 'Medel' : 'Dyrt') +
+        ' · till ' + hhmm(cur.end);
+    }
+
+    // Diagram: från början av idag till slutet av kända priser
+    var chart = document.getElementById('chart'), axis = document.getElementById('axis');
+    chart.innerHTML = ''; axis.innerHTML = '';
+    // Skala med jämna steg (t.ex. 0, 50, 100, 150 öre)
+    var raw = (Math.max(hi, 1) - Math.min(lo, 0)) / 4;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var step = [1, 2, 2.5, 5, 10].map(function (k) { return k * mag; }).filter(function (s) { return s >= raw; })[0];
+    var top = Math.ceil(Math.max(hi, 1) / step) * step, bottom = Math.min(0, Math.floor(lo / step) * step);
+    function yPct(v) { return (v - bottom) / (top - bottom) * 100; }
+    for (var g = bottom; g <= top + 1e-9; g += step) {
+      var gl = document.createElement('div');
+      gl.className = 'grid';
+      gl.style.bottom = yPct(g) + '%';
+      gl.innerHTML = '<span>' + Math.round(g) + '</span>';
+      chart.appendChild(gl);
+    }
+
+    var selIdx = -1;
+    prices.forEach(function (p, idx) {
+      var b = document.createElement('div');
+      b.className = 'bar';
+      b.setAttribute('data-i', idx);
+      if (selected && p.start.getTime() === selected) selIdx = idx;
+      b.style.height = Math.max(1, yPct(p.ore)) + '%';
+      b.style.background = 'var(--' + levelOf(p.ore, lo, hi) + ')';
+      if (p.end <= now) b.className += ' past';
+      if (p === cur) b.className += ' now';
+      chart.appendChild(b);
+      var h = p.start.getHours(), m = p.start.getMinutes();
+      if (m === 0 && h % (prices.length > todayVals.length ? 6 : 3) === 0) {
+        var s = document.createElement('span');
+        s.style.left = (idx / prices.length * 100) + '%';
+        s.textContent = h === 0 && idx > 0 ? 'imorgon' : pad(h);
+        axis.appendChild(s);
+      }
+    });
+
+    // Visa pris för vald stapel, annars för nuvarande
+    var tipIdx = selIdx >= 0 ? selIdx : prices.indexOf(cur);
+    if (tipIdx >= 0) {
+      var tp = prices[tipIdx];
+      var tip = document.createElement('div');
+      tip.id = 'tip';
+      var barEl = chart.querySelector('[data-i="' + tipIdx + '"]');
+      var x = barEl.offsetLeft + barEl.offsetWidth / 2;
+      var w = chart.clientWidth;
+      tip.style.bottom = 'calc(' + Math.min(yPct(tp.ore), 85) + '% + 1vmin)';
+      var dayPfx = tp.start.getDate() !== now.getDate() ? 'imorgon ' : '';
+      tip.innerHTML = dayPfx + hhmm(tp.start) + '–' + hhmm(tp.end) + ' <b>' + fmt(tp.ore) + '</b> öre';
+      chart.appendChild(tip);
+      var half = tip.offsetWidth / 2 + 2;
+      tip.style.left = Math.min(Math.max(x, half), w - half) + 'px';
+    }
+    document.getElementById('chartLabel').textContent = prices.length > todayVals.length ? 'Idag och imorgon' : 'Idag (morgondagen kommer ca 13:00)';
+    document.getElementById('minMax').textContent = 'Idag: lägst ' + fmt(tLo) + ' · högst ' + fmt(tHi) + ' öre/kWh';
+    document.getElementById('avg').textContent = 'snitt ' + fmt(tAvg);
+    setStatus('Uppdaterad ' + hhmm(new Date(lastFetch)) + ' · källa elprisetjustnu.se · ' +
+      (PASLAG ? 'inkl. påslag ' + fmt(PASLAG) + ' öre/kWh' : 'nätavgift och påslag ingår inte'));
+  }
+
+  // Håll skärmen tänd om webbläsaren stöder det
+  var wakeLock = null;
+  function keepAwake() {
+    if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+      navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; }).catch(function () {});
+    }
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { keepAwake(); load(); } });
+  document.addEventListener('click', keepAwake);
+
+  load();
+  keepAwake();
+  setInterval(function () {
+    var now = new Date();
+    var needTomorrow = now.getHours() >= 13 && prices.length && prices[prices.length - 1].end.getDate() === now.getDate();
+    if (Date.now() - lastFetch > FETCH_EVERY_MIN * 60e3 || needTomorrow && Date.now() - lastFetch > 5 * 60e3) load();
+    else render();
+  }, 20e3);
+})();
+</script>
+</body>
+</html>
