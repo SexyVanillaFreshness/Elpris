@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0d1117">
 <title>Elpris SE3</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --text: #e6edf3; --muted: #8b949e;
@@ -313,6 +316,17 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { keepAwake(); load(); } });
   document.addEventListener('click', keepAwake);
+
+  // Ett tryck på sidan ger helskärm (om sidan inte redan körs som app i helskärm)
+  document.addEventListener('click', function (e) {
+    if (form.contains(e.target) || e.target.id === 'gear') return;
+    if (window.matchMedia && matchMedia('(display-mode: fullscreen)').matches) return;
+    var d = document.documentElement;
+    if (!document.fullscreenElement && d.requestFullscreen) {
+      var p = d.requestFullscreen();
+      if (p && p.catch) p.catch(function () {});
+    }
+  });
 
   load();
   keepAwake();
