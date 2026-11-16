@@ -38,7 +38,7 @@
   #price { font-size: 17vmin; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; margin-top: 1vmin; }
   #price small { font-size: 5vmin; font-weight: 500; color: var(--muted); margin-left: 1vmin; }
   #level { font-size: 4.2vmin; font-weight: 600; margin-top: 1vmin; }
-  #price .arrow { font-size: 12vmin; margin-left: 2vmin; vertical-align: 6%; }
+  #price .arrow { width: 1.15em; height: 1.15em; margin-left: 1vmin; vertical-align: -0.2em; }
   #trend { font-size: 3.6vmin; margin-top: .8vmin; color: var(--muted); }
   #trend b { font-weight: 700; }
   .up { color: var(--dear); } .down { color: var(--cheap); } .flat { color: var(--muted); }
@@ -234,8 +234,8 @@
         var limit = Math.max(2, Math.abs(cur.ore) * 0.05);   // minst 2 öre eller 5 %
         trend = { dir: diff > limit ? 'up' : diff < -limit ? 'down' : 'flat', avg: nextAvg };
       }
-      var arrow = trend ? '<span class="arrow ' + trend.dir + '">' +
-        (trend.dir === 'up' ? '&#8599;' : trend.dir === 'down' ? '&#8600;' : '&#8594;') + '</span>' : '';
+      var arrow = trend ? '<svg class="arrow" viewBox="0 0 24 24" style="transform:rotate(' +
+        (trend.dir === 'up' ? -45 : trend.dir === 'down' ? 45 : 0) + 'deg)"><path d="M3 12h16M12 4.5l7.5 7.5-7.5 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
       priceEl.innerHTML = fmt(cur.ore) + arrow + '<small>öre/kWh</small>';
       priceEl.className = lv;
       document.getElementById('trend').innerHTML = trend
