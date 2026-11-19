@@ -57,12 +57,12 @@
   #legend { display: flex; justify-content: space-between; font-size: 2.6vmin; color: var(--muted); margin-top: .5vmin; }
   #status { font-size: 2.6vmin; color: var(--muted); text-align: center; }
   .cheap { color: var(--cheap); } .mid { color: var(--mid); } .dear { color: var(--dear); }
-  #stocks { flex: 0 0 auto; display: flex; flex-direction: column; gap: 1.2vmin; }
+  #stocks { flex: 0 0 auto; display: flex; flex-direction: column; gap: .6vmin; padding-top: 2vmin; padding-bottom: 2vmin; }
   #stocks:empty { display: none; }
   .tick { display: grid; grid-template-columns: auto auto; column-gap: 3vmin; align-items: baseline; font-variant-numeric: tabular-nums; }
   .tick .sym { font-size: 3.4vmin; color: var(--muted); font-weight: 600; }
   .tick .chg { font-size: 3.4vmin; font-weight: 600; text-align: right; }
-  .tick .px { font-size: 7vmin; font-weight: 700; line-height: 1.05; grid-column: 1 / -1; }
+  .tick .px { font-size: 6vmin; font-weight: 700; line-height: 1; grid-column: 1 / -1; }
   .tick .px small { font-size: 3vmin; color: var(--muted); font-weight: 500; margin-left: .6vmin; }
   #stocks .label span { text-transform: none; letter-spacing: 0; }
   @media (orientation: portrait) {
@@ -340,28 +340,43 @@
 
   // Aktiekurser (NVDA, ANT) – uppdateras av en GitHub Action i stocks.json, ca 15 min fördröjning
   var STOCKS_URL = 'https://raw.githubusercontent.com/SexyVanillaFreshness/Elpris/main/stocks.json';
-  var STOCK_NAMES = { NVDA: 'Nvidia', ANT: 'Anthropic' };
+  var STOCK_NAMES = { NVDA: 'Nvidia', ANT: 'Anthropic', BTC: 'Bitcoin' };
+  var stockQuotes = [], btcQuote = null;
+  function renderStocks() {
+    var newest = 0, html = '';
+    stockQuotes.concat(btcQuote ? [btcQuote] : []).forEach(function (q) {
+      if (q.price == null) return;
+      if (q.symbol !== 'BTC') newest = Math.max(newest, q.time || 0);
+      var pct = q.prev ? (q.price / q.prev - 1) * 100 : 0;
+      var cls = pct > 0.05 ? 'cheap' : pct < -0.05 ? 'dear' : 'flat';   // grönt = upp, rött = ner
+      var px = q.price >= 10000 ? Math.round(q.price).toString().replace(/\B(?=(\d{3})+$)/g, ' ') : q.price.toFixed(2).replace('.', ',');
+      html += '<div class="tick"><span class="sym">' + (STOCK_NAMES[q.symbol] || q.symbol) + '</span>' +
+        '<span class="chg ' + cls + '">' + (cls === 'cheap' ? '+' : cls === 'dear' ? '−' : '') + fmt(Math.abs(pct)) + ' %</span>' +
+        '<span class="px">' + px + '<small>$</small></span></div>';
+    });
+    if (!html) return;
+    document.getElementById('stocks').innerHTML = '<div class="label">Kurser' +
+      (newest ? ' <span>· aktier ' + hhmm(new Date(newest * 1000)) + '</span>' : '') + '</div>' + html;
+  }
   function loadStocks() {
     fetch(STOCKS_URL + '?t=' + Math.floor(Date.now() / 300e3), { cache: 'no-store' }).then(function (r) {
       return r.ok ? r.json() : null;
     }).then(function (d) {
-      if (!d || !d.quotes) return;
-      var el = document.getElementById('stocks'), newest = 0, html = '';
-      d.quotes.forEach(function (q) {
-        if (q.price == null) return;
-        newest = Math.max(newest, q.time || 0);
-        var pct = q.prev ? (q.price / q.prev - 1) * 100 : 0;
-        var cls = pct > 0.05 ? 'cheap' : pct < -0.05 ? 'dear' : 'flat';   // grönt = upp, rött = ner
-        html += '<div class="tick"><span class="sym">' + (STOCK_NAMES[q.symbol] || q.symbol) + '</span>' +
-          '<span class="chg ' + cls + '">' + (pct > 0 ? '+' : pct < 0 ? '−' : '') + fmt(Math.abs(pct)) + ' %</span>' +
-          '<span class="px">' + q.price.toFixed(2).replace('.', ',') + '<small>$</small></span></div>';
-      });
-      if (!html) return;
-      el.innerHTML = '<div class="label">Aktier' + (newest ? ' <span>· ' + hhmm(new Date(newest * 1000)) + '</span>' : '') + '</div>' + html;
+      if (d && d.quotes) { stockQuotes = d.quotes; renderStocks(); }
+    }).catch(function () {});
+  }
+  // Bitcoin direkt från Coinbase (dygnet runt), ändring mot för 24 timmar sedan
+  function loadBtc() {
+    fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats', { cache: 'no-store' }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      if (d && d.last) { btcQuote = { symbol: 'BTC', price: +d.last, prev: +d.open }; renderStocks(); }
     }).catch(function () {});
   }
   loadStocks();
+  loadBtc();
   setInterval(loadStocks, 5 * 60e3);
+  setInterval(loadBtc, 60e3);
 
   load();
   keepAwake();
