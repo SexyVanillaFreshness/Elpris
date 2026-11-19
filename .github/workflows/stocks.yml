@@ -1,0 +1,43 @@
+# Hämtar aktiekurser för NVDA och ANT var 15:e minut under börstid (USA)
+# och sparar dem i stocks.json, som sidan läser.
+name: Aktiekurser
+
+on:
+  schedule:
+    - cron: '*/15 13-21 * * 1-5'   # UTC, vardagar
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stocks
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hämta kurser
+        run: |
+          set -euo pipefail
+          for s in NVDA ANT; do
+            curl -sf -A "Mozilla/5.0" \
+              "https://query1.finance.yahoo.com/v8/finance/chart/$s?range=1d&interval=1d" \
+              | jq '.chart.result[0].meta | {symbol, price: .regularMarketPrice, prev: .chartPreviousClose, time: .regularMarketTime, currency}' \
+              > "q_$s.json"
+          done
+          jq -s '{quotes: .}' q_NVDA.json q_ANT.json > stocks.json
+          rm q_*.json
+          cat stocks.json
+
+      - name: Spara om något ändrats
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add stocks.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Uppdatera aktiekurser"
+          git push
