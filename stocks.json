@@ -2,16 +2,16 @@
   "quotes": [
     {
       "symbol": "NVDA",
-      "price": 127.23,
+      "price": 125.53,
       "prev": 145.98,
-      "time": 1795207139,
+      "time": 1795208401,
       "currency": "USD"
     },
     {
       "symbol": "ANT",
-      "price": 86.955,
+      "price": 88.91,
       "prev": 97.17,
-      "time": 1795207140,
+      "time": 1795208402,
       "currency": "USD"
     }
   ]
